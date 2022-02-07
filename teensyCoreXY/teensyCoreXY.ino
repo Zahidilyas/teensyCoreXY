@@ -2,6 +2,7 @@
 #include "teensystep4.h"
 #include <Servo.h>
 #include "main.h"
+#include <Encoder.h>
 
 // using namespace TS4;
 
@@ -64,6 +65,10 @@ THIS_Y = 0,                         //y co-ordinate (rounded)
 LAST_X = 0,                         //x co-ordinate (rounded)
 LAST_Y = 0;                         //y co-ordinate (rounded)
 
+long
+positionLeft = -999,
+positionRight  = -999;
+
 // ----- gcode definitions
 #define STRING_SIZE 128             //string size
 
@@ -91,6 +96,9 @@ TS4::Stepper stepperRight(STEP1,DIR1);
 TS4::Stepper stepperLeft(STEP2,DIR2);
 // ----- define and move a groups of steppers synchronized
 TS4::StepperGroup stepperGroup{stepperRight, stepperLeft};
+
+Encoder leftMotor(28,29);
+Encoder rightMotor(30,31);
 
 
 // -----------------------
@@ -471,6 +479,9 @@ void process(String string) {
 //    servo_claw.write(180);
     stepperRight.setPosition(0);
     stepperLeft.setPosition(0);
+
+    leftMotor.write(0);
+    rightMotor.write(0);
     delay(200); 
   }
   
