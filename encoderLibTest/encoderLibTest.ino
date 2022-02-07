@@ -10,13 +10,32 @@
 //   Best Performance: both pins have interrupt capability
 //   Good Performance: only the first pin has interrupt capability
 //   Low Performance:  neither pin has interrupt capability
-Encoder knobLeft(5, 6);
-Encoder knobRight(7, 8);
+Encoder knobLeft(28, 29);
+Encoder knobRight(30, 31);
 //   avoid using pins with LEDs attached
+
+#define DIR1 5                      //arduino ports
+#define DIR2 6
+#define STEP1 2
+#define STEP2 3
 
 void setup() {
   Serial.begin(9600);
   Serial.println("TwoKnobs Encoder Test:");
+  pinMode(DIR1,OUTPUT);
+  pinMode(DIR2,OUTPUT);
+  pinMode(STEP1,OUTPUT);
+  pinMode(STEP2,OUTPUT);
+  digitalWrite(DIR1,HIGH);
+  digitalWrite(DIR2,LOW);
+
+  for(int i=0; i<3200;i++){
+    digitalWrite(STEP1,HIGH);
+  digitalWrite(STEP2,HIGH);
+  digitalWrite(STEP1,LOW);
+  digitalWrite(STEP2,LOW);
+  delayMicroseconds(100);
+  }
 }
 
 long positionLeft  = -999;

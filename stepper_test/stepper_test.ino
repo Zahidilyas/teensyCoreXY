@@ -2,7 +2,6 @@
 #define DIR2 6
 #define STEP1 2
 #define STEP2 3
-#define ENABLE 8
 
 void setup() {
   // put your setup code here, to run once:
@@ -10,9 +9,7 @@ void setup() {
   pinMode(DIR2,OUTPUT);
   pinMode(STEP1,OUTPUT);
   pinMode(STEP2,OUTPUT);
-  pinMode(ENABLE,OUTPUT);
 
-  digitalWrite(ENABLE,LOW);
 
   digitalWrite(DIR1,HIGH);
   digitalWrite(DIR2,LOW);

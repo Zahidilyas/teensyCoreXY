@@ -22,7 +22,9 @@
 #define TOG(x,y) (x^=(1<<y))
 
 // ----- motor definitions 
-#define STEPS_PER_MM 200*16/40      //200steps/rev; 16 x microstepping; 40mm/rev
+int ENCODER_PULSES_PER_REVOLUTION = 4000;
+int STEPS_PER_REVOLITION  = 200*16;
+#define STEPS_PER_MM STEPS_PER_REVOLITION/40      //200steps/rev; 16 x microstepping; 40mm/rev
 #define NUDGE STEPS_PER_MM*5        //move pen 5mm (change number to suit)
 #define DIR1 5                      //arduino ports
 #define DIR2 6
@@ -536,11 +538,16 @@ void calibrate(){
   Serial.println(F("Calibrated"));
 }
 
+
 // -------------------------------
 // MOVE_TO
 // -------------------------------
-void move_to(float x, float y) {                        //x,y are absolute co-ordinates
+void move_to(float x, float y) {
 
+  long goalPosL, goalPosR;
+  
+  //x,y are absolute co-ordinates
+ 
   // ----- convert to steps
   THIS_X = round(x * STEPS_PER_MM);     
   THIS_Y = round(y * STEPS_PER_MM);
@@ -550,11 +557,52 @@ void move_to(float x, float y) {                        //x,y are absolute co-or
   motorRightSteps = -1*THIS_X + -1*THIS_Y;
   motorLeftSteps  = -1*THIS_X + THIS_Y;
 
+  goalPosL = int((float(motorLeftSteps)/float(STEPS_PER_REVOLITION))*float(ENCODER_PULSES_PER_REVOLUTION));
+  goalPosR = int((float(motorRightSteps)/float(STEPS_PER_REVOLITION))*float(ENCODER_PULSES_PER_REVOLUTION));
+
   stepperRight.setTargetAbs(motorRightSteps);
   stepperLeft.setTargetAbs(motorLeftSteps);
   stepperGroup.move();
   delay(10);
 
+  positionLeft = -1*leftMotor.read();
+  positionRight = rightMotor.read();
+
+
+  int stepsToSetLeftMotor = int( (float(positionLeft)/float(ENCODER_PULSES_PER_REVOLUTION))*float(STEPS_PER_REVOLITION) );
+  int stepsToSetRightMotor =int( (float(positionRight)/float(ENCODER_PULSES_PER_REVOLUTION))*float(STEPS_PER_REVOLITION) );
+
+  if(abs(positionLeft-goalPosL) > 10 || abs(positionRight-goalPosR) > 10){
+    
+    stepperLeft.setPosition(stepsToSetLeftMotor);
+    stepperRight.setPosition(stepsToSetRightMotor);
+    
+    for(int i = 0; i<10; i++){
+      Serial.println(i);
+      stepperRight.setTargetAbs(motorRightSteps);
+      stepperLeft.setTargetAbs(motorLeftSteps);
+      stepperGroup.move();
+      delay(10);
+      
+      positionLeft = -1*leftMotor.read();
+      positionRight = rightMotor.read();
+
+      if(abs(positionLeft-goalPosL) < 5 && abs(positionRight-goalPosR) < 5){
+        break;
+      }
+
+      if(i==9){
+        Serial.println("ERROR: COLLISION DETECTED");
+      }
+
+      stepsToSetLeftMotor = int( (float(positionLeft)/float(ENCODER_PULSES_PER_REVOLUTION))*float(STEPS_PER_REVOLITION) );
+      stepsToSetRightMotor =int( (float(positionRight)/float(ENCODER_PULSES_PER_REVOLUTION))*float(STEPS_PER_REVOLITION) );
+      stepperLeft.setPosition(stepsToSetLeftMotor);
+      stepperRight.setPosition(stepsToSetRightMotor);
+    }
+    
+  }
+  
   // ----- remember last co-ordinate
   LAST_X = THIS_X;
   LAST_Y = THIS_Y;
