@@ -572,7 +572,7 @@ void move_to(float x, float y) {
   int stepsToSetLeftMotor = int( (float(positionLeft)/float(ENCODER_PULSES_PER_REVOLUTION))*float(STEPS_PER_REVOLITION) );
   int stepsToSetRightMotor =int( (float(positionRight)/float(ENCODER_PULSES_PER_REVOLUTION))*float(STEPS_PER_REVOLITION) );
 
-  if(abs(positionLeft-goalPosL) > 10 || abs(positionRight-goalPosR) > 10){
+  if(abs(positionLeft-goalPosL) > 5 || abs(positionRight-goalPosR) > 5){
     
     stepperLeft.setPosition(stepsToSetLeftMotor);
     stepperRight.setPosition(stepsToSetRightMotor);
