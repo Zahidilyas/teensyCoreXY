@@ -50,7 +50,7 @@ DELAY = 200; //710                        //delay (uS) between motor steps (cont
 
 
 // ----- plotter definitions
-#define BAUD 115200
+#define BAUD 4800
 #define XOFF 0x13                   //pause transmission (19 decimal)
 #define XON 0x11                    //resume transmission (17 decimal)
 #define PEN 9
@@ -115,12 +115,12 @@ void setup()
   TS4::begin();
 
   stepperRight
-      .setMaxSpeed(10'000)
-      .setAcceleration(15'000);
+      .setMaxSpeed(50'000) //10'000
+      .setAcceleration(55'000); //15'000
 
   stepperLeft
-      .setMaxSpeed(10'000)
-      .setAcceleration(15'000);
+      .setMaxSpeed(50'000)
+      .setAcceleration(55'000);
 
   digitalWrite(DIR1, CW);
   digitalWrite(DIR2, CW);
@@ -162,6 +162,7 @@ void loop()
     BUFFER[INDEX++] = INPUT_CHAR;             //add char to buffer
     if (INPUT_CHAR == '\n') {                 //check for line feed
       Serial.flush();                         //clear TX buffer
+      serialFlush();                          //clear RX buffer
       // Serial.write(XOFF);                     //pause transmission
       INPUT_STRING = BUFFER;                  //convert to string
       process(INPUT_STRING);                  //interpret string and perform task
@@ -171,6 +172,12 @@ void loop()
       Serial.flush();                         //clear TX buffer
       // Serial.write(XON);                      //resume transmission
     }
+  }
+}
+
+void serialFlush(){
+  while(Serial.available() > 0) {
+    Serial.read();
   }
 }
 
@@ -439,7 +446,28 @@ void process(String string) {
   }
 
 
+  if (INPUT_STRING.startsWith("DD")){
+    for (int step = 0; step < NUDGE; step++) {
+      right();
+    }
+  }
+  if (INPUT_STRING.startsWith("LL")){
+    for (int step = 0; step < NUDGE; step++) {
+      left();
+    }
+  }
+  if (INPUT_STRING.startsWith("FF")){
+    for (int step = 0; step < NUDGE; step++) {
+      up();
+    }
+  }
+  if (INPUT_STRING.startsWith("BB")){
+    for (int step = 0; step < NUDGE; step++) {
+      down();
+    }
+  }
 
+  
   // ----------------------------------
   // T3   pen up
   // ----------------------------------
