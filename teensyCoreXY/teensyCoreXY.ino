@@ -102,6 +102,9 @@ TS4::StepperGroup stepperGroup{stepperRight, stepperLeft};
 Encoder leftMotor(28,29);
 Encoder rightMotor(30,31);
 
+int current_servo_claw = 50;
+int current_servo_zaxis = 50;
+int current_servo_rot = 50;
 
 // -----------------------
 // SETUP
@@ -129,9 +132,12 @@ void setup()
   digitalWrite(ENABLE,LOW); // ----- Enable Stepper Motors
 
   // ----- Servos
+  servo_claw.attach(8);
   servo_up_down.attach(9);
   servo_rot.attach(10);
-  servo_claw.attach(11);
+  gotoservo(90,"claw");
+  gotoservo(0,"zaxis");
+  gotoservo(0,"rot");
 
   // Set switched pins as Inputs
   pinMode(x_switch, INPUT);
@@ -151,6 +157,59 @@ void setup()
 
   // ----- display commands
   menu();  
+}
+
+void gotoservo(int x,String motor){
+
+  int current;
+  if(motor == "claw"){
+    current = current_servo_claw;
+    if(x>current){
+      for(int pos = current; pos <= x; pos += 1){ 
+        servo_claw.write(pos);              // tell servo to go to position in variable 'pos' 
+        delay(15);                       // waits 15ms for the servo to reach the position 
+      } 
+    }else {
+      for(int pos = current; pos >= x; pos -= 1){
+        servo_claw.write(pos);              // tell servo to go to position in variable 'pos' 
+        delay(15);                       // waits 15ms for the servo to reach the position 
+      } 
+    }
+    current_servo_claw = x;
+    
+  }else if(motor == "zaxis"){
+    current = current_servo_zaxis;
+    if(x>current){
+      for(int pos = current; pos <= x; pos += 1){ 
+        servo_up_down.write(pos);              // tell servo to go to position in variable 'pos' 
+        delay(15);                       // waits 15ms for the servo to reach the position 
+      } 
+    }else {
+      for(int pos = current; pos >= x; pos -= 1){
+        servo_up_down.write(pos);              // tell servo to go to position in variable 'pos' 
+        delay(15);                       // waits 15ms for the servo to reach the position 
+      } 
+    }
+    current_servo_zaxis = x;
+    
+  }else if(motor == "rot"){
+    current = current_servo_rot;
+    if(x>current){
+      for(int pos = current; pos <= x; pos += 1){ 
+        servo_rot.write(pos);              // tell servo to go to position in variable 'pos' 
+        delay(15);                       // waits 15ms for the servo to reach the position 
+      } 
+    }else {
+      for(int pos = current; pos >= x; pos -= 1){
+        servo_rot.write(pos);              // tell servo to go to position in variable 'pos' 
+        delay(15);                       // waits 15ms for the servo to reach the position 
+      } 
+    }
+    current_servo_rot = x;
+    
+  }else{
+    true;
+  }
 }
 
 void loop()
@@ -843,14 +902,16 @@ void draw_arc_ccw(float x, float y, float i, float j) {
 // Changing the value in OCR2B changes the pulse-width to the SG-90 servo
 //---------------------------------------------------------------------------
 void pen_up() {
-  servo_up_down.write(10);
+  //servo_up_down.write(10);
+  gotoservo(0,"zaxis");
 //  OCR1B = 148;                //1mS pulse
   delay(250);                 //give pen-lift time to respond
 //  Serial.println("PEEEEEENN up");
 }
 
 void pen_down() {
-  servo_up_down.write(170);
+  //servo_up_down.write(170);
+  gotoservo(120,"zaxis");
   delay(250);                 //give pen-lift time to respond
 }
 
@@ -858,12 +919,14 @@ void pen_down() {
 // Gripper Open/Close 
 //---------------------------------------------------------------------------
 void grip_open() {
-  servo_claw.write(20);
+  //servo_claw.write(20);
+  gotoservo(90,"claw");
   delay(250);                 //give pen-lift time to respond
 }
 
 void grip_close() {
-  servo_claw.write(105);
+  //servo_claw.write(105);
+  gotoservo(40,"claw");
   delay(250);                 //give pen-lift time to respond
 }
 
@@ -871,6 +934,7 @@ void grip_close() {
 // Gripper Rotate 
 //---------------------------------------------------------------------------
 void rotate(int angle) {
-  servo_rot.write(angle);
+  //servo_rot.write(angle);
+  gotoservo(angle,"rot");
   delay(250);                 //give pen-lift time to respond
 }
