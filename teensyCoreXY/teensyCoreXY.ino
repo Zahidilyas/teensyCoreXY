@@ -557,7 +557,7 @@ void process(String string) {
 
     rotate(Angle);
 //    servo_rot.write(Angle);
-    delay(2000); 
+    delay(5); 
   }
 
   // ----------------------------------
@@ -580,7 +580,7 @@ void process(String string) {
   if (INPUT_STRING.startsWith("Z1")) {
     grip_open();
 //    servo_claw.write(180);
-    delay(200); 
+    delay(10); 
   }
 
   // ----------------------------------
@@ -589,7 +589,20 @@ void process(String string) {
   if (INPUT_STRING.startsWith("Z2")) {
     grip_close();
 //    servo_claw.write(80);
-    delay(200); 
+    delay(10); 
+  }
+
+  if (INPUT_STRING.startsWith("O")) {
+    
+    // ----- extract Angle
+    START = INPUT_STRING.indexOf('O');
+    if (!(START < 0)) {
+      FINISH = START + 8;
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
+      Angle = SUB_STRING.toInt();
+    }
+    grip_open_close(Angle);
+    delay(5); 
   }
 
 }
@@ -905,29 +918,35 @@ void pen_up() {
   //servo_up_down.write(10);
   gotoservo(0,"zaxis");
 //  OCR1B = 148;                //1mS pulse
-  delay(250);                 //give pen-lift time to respond
+  delay(10);                 //give pen-lift time to respond
 //  Serial.println("PEEEEEENN up");
 }
 
 void pen_down() {
   //servo_up_down.write(170);
   gotoservo(120,"zaxis");
-  delay(250);                 //give pen-lift time to respond
+  delay(10);                 //give pen-lift time to respond
 }
 
 //---------------------------------------------------------------------------
 // Gripper Open/Close 
 //---------------------------------------------------------------------------
-void grip_open() {
-  //servo_claw.write(20);
-  gotoservo(90,"claw");
-  delay(250);                 //give pen-lift time to respond
-}
+//void grip_open() {
+//  //servo_claw.write(20);
+//  gotoservo(90,"claw");
+//  delay(10);                 //give pen-lift time to respond
+//}
+//
+//void grip_close() {
+//  //servo_claw.write(105);
+//  gotoservo(40,"claw");
+//  delay(10);                 //give pen-lift time to respond
+//}
 
-void grip_close() {
-  //servo_claw.write(105);
-  gotoservo(40,"claw");
-  delay(250);                 //give pen-lift time to respond
+void grip_open_close(int angle) {
+  //servo_rot.write(angle);
+  gotoservo(angle,"claw");
+  //delay(10);                 //give pen-lift time to respond
 }
 
 //---------------------------------------------------------------------------
@@ -936,5 +955,5 @@ void grip_close() {
 void rotate(int angle) {
   //servo_rot.write(angle);
   gotoservo(angle,"rot");
-  delay(250);                 //give pen-lift time to respond
+  //delay(10);                 //give pen-lift time to respond
 }
