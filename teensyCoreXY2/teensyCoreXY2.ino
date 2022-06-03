@@ -943,7 +943,7 @@ void pen_up() {
 
 void pen_down() {
   //servo_up_down.write(170);
-  gotoservo(120,"zaxis");
+  gotoservo(180,"zaxis");
   delay(10);                 //give pen-lift time to respond
 }
 
