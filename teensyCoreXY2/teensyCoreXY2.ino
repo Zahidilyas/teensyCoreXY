@@ -3,8 +3,9 @@
 #include <Servo.h>
 #include "main.h"
 #include <Encoder.h>
+#include "../../../../../Desktop/presets.h"
 
-// using namespace TS4;
+// using namespace TS4; ?
 
 // -------------------------------
 // GLOBALS
@@ -132,9 +133,9 @@ void setup()
   digitalWrite(ENABLE,LOW); // ----- Enable Stepper Motors
 
   // ----- Servos
-  servo_claw.attach(8, 925, 1910);
-  servo_up_down.attach(9, 1020, 1975);
-  servo_rot.attach(10, 925, 1910);
+  servo_claw.attach(8, SERVO_CLAW_LOW_PULSE_WIDTH , SERVO_CLAW_HIGH_PULSE_WIDTH);
+  servo_up_down.attach(9, SERVO_Z_LOW_PULSE_WIDTH, SERVO_Z_HIGH_PULSE_WIDTH);
+  servo_rot.attach(10,SERVO_ROT_LOW_PULSE_WIDTH , SERVO_ROT_HIGH_PULSE_WIDTH);
   gotoservo(90,"claw");
   gotoservo(0,"zaxis");
   gotoservo(0,"rot");
@@ -258,8 +259,8 @@ void menu() {
   Serial.println(F("    T2 S##.## .......... set drawing Scale (1=100%)"));
   Serial.println(F("    T3 ................. Move up"));
   Serial.println(F("    T4 ................. Move down"));
-  Serial.println(F("    Z1 ................. Grip Open"));
-  Serial.println(F("    Z2 ................. Grip Close"));
+  Serial.println(F("    Z1 ................. Grip Close"));
+  Serial.println(F("    Z2 ................. Grip Open"));
   Serial.println(F("    R(angle) ........... Rotate with angle Ex. R90"));
   Serial.println(F("  ------------------------------------------------------"));
 }
