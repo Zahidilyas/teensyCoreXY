@@ -612,6 +612,10 @@ void process(String string) {
       SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
       Angle = SUB_STRING.toInt();
     }
+    if(Angle>90){
+        Angle=90;}
+    if(Angle<40){
+        Angle=40;}
     grip_open_close(Angle);
     delay(5); 
   }
