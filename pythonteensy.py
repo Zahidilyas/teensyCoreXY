@@ -56,11 +56,13 @@ class PiXY:
         time.sleep(2)
 
     def grip_open_close(self, val):
-        self.ser.write('O'+str(val)+ '/n')
+        self.ser.write(('O'+str(val)+ '\n').encode('utf-8'))
+    
+    def grip_up_down(self, val):
+        self.ser.write(('P'+str(val)+ '\n').encode('utf-8'))
         
     def rotate(self,angle):
         self.ser.write(('R'+str(angle) + '\n').encode('utf-8'))
-        time.sleep(2)
         
     def moveto(self,x,y):
         self.ser.write( ('G00 X'+str(x)+' Y'+str(y) + '\n').encode('utf-8'))
@@ -80,7 +82,17 @@ if __name__=="__main__":
         print("Y = ",Ycor)
         #print("   ")
         grip.moveto(Xcor,Ycor)
-        time.sleep(1)
+        time.sleep(3)
 
         grip.grip_open_close(90)
+        time.sleep(1)
         grip.grip_open_close(40)
+        time.sleep(1)
+        grip.grip_up_down(10)
+        time.sleep(2)
+        grip.grip_up_down(170)
+        time.sleep(2)
+        grip.rotate(0)
+        time.sleep(2)
+        grip.rotate(180)
+        time.sleep(2)

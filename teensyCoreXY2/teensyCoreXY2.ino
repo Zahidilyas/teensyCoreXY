@@ -602,7 +602,7 @@ void process(String string) {
 //    servo_claw.write(80);
     delay(10); 
   }
-
+  
   if (INPUT_STRING.startsWith("O")) {
     
     // ----- extract Angle
@@ -617,6 +617,23 @@ void process(String string) {
     if(Angle<40){
         Angle=40;}
     grip_open_close(Angle);
+    delay(5); 
+  }
+
+  if (INPUT_STRING.startsWith("P")) {
+    
+    // ----- extract Angle
+    START = INPUT_STRING.indexOf('P');
+    if (!(START < 0)) {
+      FINISH = START + 8;
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
+      Angle = SUB_STRING.toInt();
+    }
+    if(Angle>180){
+        Angle=180;}
+    if(Angle<0){
+        Angle=0;}
+    gotoservo(Angle,"zaxis");
     delay(5); 
   }
 
