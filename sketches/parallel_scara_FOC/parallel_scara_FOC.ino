@@ -4,36 +4,38 @@
 #include <math.h>
 #include <Servo.h>
 #include <SimpleFOC.h>
+#include <Arduino.h>
+#include "TeensyThreads.h"
 
 
 #pragma region
 
 
-StepperMotor motor = StepperMotor(50);
-StepperMotor motor2 = StepperMotor(50);
+StepperMotor motorLeft = StepperMotor(50);
+StepperMotor motorRight = StepperMotor(50);
 StepperDriver4PWM driver = StepperDriver4PWM(5,6,7,8,9,10);
 StepperDriver4PWM driver2 = StepperDriver4PWM(2,3,4,11,12,32);
 
 // encoder instance
-Encoder encoder = Encoder(28, 29, 1000);
-Encoder encoder2 = Encoder(30, 31, 1000);
+Encoder encoderLeft = Encoder(28, 29, 1000);
+Encoder encoderRight = Encoder(30, 31, 1000);
 
 // Interrupt routine intialisation
 // channel A and B callbacks
-void doA(){encoder.handleA();}
-void doB(){encoder.handleB();}
-void doA2(){encoder2.handleA();}
-void doB2(){encoder2.handleB();}
+void doA(){encoderLeft.handleA();}
+void doB(){encoderLeft.handleB();}
+void doA2(){encoderRight.handleA();}
+void doB2(){encoderRight.handleB();}
 
 // velocity set point variable
-float target_velocity = 0;
-float target_velocity_2 = 0;
+float targetLeftMotor = 0;
+float targetRightMotor = 0;
 // instantiate the commander
 Commander command = Commander(Serial);
-void doTarget(char* cmd) { command.scalar(&target_velocity, cmd); }
-void doTarget2(char* cmd2) { command.scalar(&target_velocity_2, cmd2); }
-void doMotor(char* cmd) { command.motor(&motor, cmd); }
-void doMotor2(char* cmd) { command.motor(&motor2, cmd); }
+void doTarget(char* cmd) { command.scalar(&targetLeftMotor, cmd); }
+void doTarget2(char* cmd2) { command.scalar(&targetRightMotor, cmd2); }
+void doMotor(char* cmd) { command.motor(&motorLeft, cmd); }
+void domotorRight(char* cmd) { command.motor(&motorRight, cmd); }
 
 // System parameters
 double
@@ -119,6 +121,11 @@ float X, Y, I, J;//gcode float values held here
 
 using namespace BLA;
 
+
+double draw_line(double x1, double y1, double x2, double y2, int NumberOfSegments, double *x, double *y);
+void MovetoFrom( double x_current, double y_current, double x_goal, double y_goal, int numberOfSegments);
+void move_to(float x, float y);
+
 // -----------------------
 // SETUP
 // -----------------------
@@ -127,13 +134,13 @@ void setup()
   
   ////////////////////////////////////////////////////////////////////////////////////////////
   // initialize encoder sensor hardware
-  encoder.init();
-  encoder2.init();
-  encoder.enableInterrupts(doA, doB);
-  encoder2.enableInterrupts(doA2, doB2);
+  encoderLeft.init();
+  encoderRight.init();
+  encoderLeft.enableInterrupts(doA, doB);
+  encoderRight.enableInterrupts(doA2, doB2);
   // link the motor to the sensor
-  motor.linkSensor(&encoder);
-  motor2.linkSensor(&encoder2);
+  motorLeft.linkSensor(&encoderLeft);
+  motorRight.linkSensor(&encoderRight);
 
   // driver config
   // power supply voltage [V]
@@ -142,68 +149,68 @@ void setup()
   driver.init();
   driver2.init();
   // link the motor and the driver
-  motor.linkDriver(&driver);
-  motor2.linkDriver(&driver2);
+  motorLeft.linkDriver(&driver);
+  motorRight.linkDriver(&driver2);
 
   // aligning voltage [V]
-  motor.voltage_sensor_align = 5;
-  motor2.voltage_sensor_align = 5;
+  motorLeft.voltage_sensor_align = 5;
+  motorRight.voltage_sensor_align = 5;
 
-  motor.controller = MotionControlType::angle;
-  motor2.controller = MotionControlType::angle;
+  motorLeft.controller = MotionControlType::angle;
+  motorRight.controller = MotionControlType::angle;
   
-//  motor.torque_controller = TorqueControlType::voltage;
-//  motor.controller = MotionControlType::torque;
+//  motorLeft.torque_controller = TorqueControlType::voltage;
+//  motorLeft.controller = MotionControlType::torque;
 
   // contoller configuration
   // default parameters in defaults.h
 
   // velocity PI controller parameters
-  motor.PID_velocity.P = 2.0f; //0.5f
-  motor.PID_velocity.I = 20; //20
-  motor.PID_velocity.D = 0.01;
+  motorLeft.PID_velocity.P = 2.0f; //0.5f
+  motorLeft.PID_velocity.I = 20; //20
+  motorLeft.PID_velocity.D = 0.01;
 
-  motor2.PID_velocity.P = 2.0f; //0.5f
-  motor2.PID_velocity.I = 20; //20
-  motor2.PID_velocity.D = 0.01;
+  motorRight.PID_velocity.P = 2.0f; //0.5f
+  motorRight.PID_velocity.I = 20; //20
+  motorRight.PID_velocity.D = 0.01;
 
-  motor.P_angle.P = 10;
-  motor2.P_angle.P = 10;
+  motorLeft.P_angle.P = 10;
+  motorRight.P_angle.P = 10;
   // default voltage_power_supply
-  motor.voltage_limit = 12;
-  motor2.voltage_limit = 12;
+  motorLeft.voltage_limit = 12;
+  motorRight.voltage_limit = 12;
 
   // jerk control using voltage voltage ramp
   // default value is 300 volts per sec  ~ 0.3V per millisecond
-  motor.PID_velocity.output_ramp = 1000;
-  motor2.PID_velocity.output_ramp = 1000;
+  motorLeft.PID_velocity.output_ramp = 1000;
+  motorRight.PID_velocity.output_ramp = 1000;
 
   // velocity low pass filtering time constant
-  motor.LPF_velocity.Tf = 0.01f;
-  motor2.LPF_velocity.Tf = 0.01f;
+  motorLeft.LPF_velocity.Tf = 0.01f;
+  motorRight.LPF_velocity.Tf = 0.01f;
 
   // initialize motor
-  motor.init();
-  motor2.init();
+  motorLeft.init();
+  motorRight.init();
   // align sensor and start FOC
-  motor.initFOC();
-  motor2.initFOC();
+  motorLeft.initFOC();
+  motorRight.initFOC();
 
   // set the initial target value
-  motor.target = 0;
-  motor2.target = 0;
+  motorLeft.target = 0;
+  motorRight.target = 0;
 
   // add target command T
   command.add('T', doTarget, "target velocity");
   command.add('Y', doTarget2, "target velocity 2");
   command.add('M',doMotor,"motor");
-  command.add('N',doMotor2,"motor");
+  command.add('N',domotorRight,"motor");
   
   // ----- establish serial link
   Serial.begin(BAUD);
   
-  Serial.println(F("Motor ready."));
-  Serial.println(F("Set the target velocity using serial terminal:"));
+//  Serial.println(F("Motor ready."));
+//  Serial.println(F("Set the target velocity using serial terminal:"));
  ///////////////////////////////////////////////////////////////////////////////////////
   
 
@@ -221,57 +228,27 @@ void setup()
 
   _delay(1000);
 
-  motor.controller = MotionControlType::velocity;
-  motor2.controller = MotionControlType::velocity;
+  motorLeft.controller = MotionControlType::velocity;
+  motorRight.controller = MotionControlType::velocity;
  // initialize motor
-  motor.init();
-  motor2.init();
+  motorLeft.init();
+  motorRight.init();
   // align sensor and start FOC
-  motor.initFOC();
-  motor2.initFOC();
+  motorLeft.initFOC();
+  motorRight.initFOC();
+
+
+  threads.addThread(calibrate_scara);
+//   targetLeftMotor = 2;
+//   targetRightMotor = 2;
+   threads.addThread(serialread);
+
+
+//   calibrate_scara();
   
-  while (digitalRead(SW2) == LOW) {
-    motor.loopFOC();
-    motor2.loopFOC();  //RIGHT MOTOR
-    motor.move(2);
-    motor2.move(2);
-//    Serial.print("Here ");
-  }
-  motor2.sensor_offset = motor2.sensor_offset + motor2.shaft_angle;
-  //set one of the encoder to zero
-
-  while (digitalRead(SW1) == LOW) {
-    motor.loopFOC();
-    motor2.loopFOC(); 
-    motor.move(-2);
-    motor2.move(-2);
-  }
-  motor.sensor_offset = motor.sensor_offset + motor.shaft_angle;
-
-
-  motor.controller = MotionControlType::angle;
-  motor2.controller = MotionControlType::angle;
-
-  motor2.target = motor2.shaft_angle;
-  target_velocity_2 = motor2.shaft_angle;
-  motor.target = motor.shaft_angle;
-//  angleOfRightMotorDeg = stepsToDegrees(q2_initial_steps) - calibrationAngleRight;
-//  angleOfLeftMotorDeg = calibrationAngleLeft;
-//
-//  angleOfRightMotorSteps = degreesToSteps(angleOfRightMotorDeg);
-//  angleOfLeftMotorSteps = degreesToSteps(angleOfLeftMotorDeg);
-//
-//  LeftStepperObject.setCurrentPosition(angleOfLeftMotorSteps);
-//  RightStepperObject.setCurrentPosition(angleOfRightMotorSteps);
-
-//  FixEndEffectorRotationToHorizontal();
-
-//    while (Serial.available() == 0) {
-//      true;
-//    }
-
+  
 //  //Starting location
-  MovetoFrom(xMinWorkspace - 20, yMinWorkspace, xMinWorkspace - 20, yMinWorkspace, numberOfSegments);
+//  MovetoFrom(xMinWorkspace - 20, yMinWorkspace, xMinWorkspace - 20, yMinWorkspace, numberOfSegments);
 //  THIS_X = xMinWorkspace - 20;
 //  THIS_Y = yMinWorkspace;
 //  LAST_X = xMinWorkspace - 20;
@@ -284,25 +261,106 @@ void setup()
 //  // ----- flush the buffers
 //  Serial.flush();                           //clear TX buffer
 //  while (Serial.available()) Serial.read(); //clear RX buffer
-//  // ----- display commands
-//  menu();
+  // ----- display commands
+  menu();
+}
+
+
+/**
+ * Motor control loop thread
+ */
+//void motorControlLoop(){
+//  while(1){
+//    motorLeft.loopFOC();
+//    motorRight.loopFOC(); //RIGHT MOTOR
+//
+//    motorLeft.move(targetLeftMotor);
+//    motorRight.move(targetRightMotor);
+//  //  command.run();
+//  }
+//}
+
+/**
+ * Serial Reading thread 
+ * 
+ */
+void serialread(){
+    // ----- get the next instruction
+    while(1){
+        while (Serial.available()) {
+        INPUT_CHAR = (char)Serial.read();         //read character
+        Serial.write(INPUT_CHAR);                 //echo character to the screen
+        BUFFER[INDEX++] = INPUT_CHAR;             //add char to buffer
+        if (INPUT_CHAR == '\n') {                 //check for line feed
+            Serial.flush();                         //clear TX buffer
+            Serial.write(XOFF);                     //pause transmission
+            INPUT_STRING = BUFFER;                  //convert to string
+            process(INPUT_STRING);                  //interpret string and perform task
+            memset(BUFFER, '\0', sizeof(BUFFER));   //fill buffer with string terminators
+            INDEX = 0;                              //point to buffer start
+            INPUT_STRING = "";                      //empty string
+            Serial.flush();                         //clear TX buffer
+            Serial.write(XON);                      //resume transmission
+        }
+        }
+        threads.delay(10);
+        threads.yield();
+    }
+}
+
+/**
+ * Calibrate parallel scara
+ */
+void calibrate_scara(){
+
+  // Set control to velocity Control
+  motorLeft.controller = MotionControlType::velocity;
+  motorRight.controller = MotionControlType::velocity;
+
+  // Rotate till right switch triggered
+  while (digitalRead(SW2) == LOW) {
+    targetLeftMotor = 2;
+    targetRightMotor = 2;
+    threads.delay(50);
+  }
+  targetLeftMotor = 0;
+  targetRightMotor = 0;
+  // reset right motor encoder zero position
+  motorRight.sensor_offset = motorRight.sensor_offset + motorRight.shaft_angle;
+
+  // Rotate till left switch triggered
+  while (digitalRead(SW1) == LOW) {
+    targetLeftMotor = -2;
+    targetRightMotor = -2;
+    threads.delay(50);
+  }
+  targetLeftMotor = 0;
+  targetRightMotor = 0;
+  // reset left motor encoder zero position
+  motorLeft.sensor_offset = motorLeft.sensor_offset + motorLeft.shaft_angle;
+
+  motorLeft.controller = MotionControlType::angle;
+  motorRight.controller = MotionControlType::angle;
+
+  motorRight.target = motorRight.shaft_angle;
+  targetRightMotor = motorRight.shaft_angle;
+  motorLeft.target = motorLeft.shaft_angle;
+
+//  MovetoFrom(xMinWorkspace - 20, yMinWorkspace, xMinWorkspace - 20, yMinWorkspace, numberOfSegments);
+  threads.suspend(threads.id());
 }
 
 //--------------------------------------------------------------------------
 // MAIN LOOP
 //--------------------------------------------------------------------------
+
 void loop()
 {
-//  motor.loopFOC();
-//  motor2.loopFOC();
-//
-//  motor.move(target_velocity);
-//  motor2.move(target_velocity_2);
-//
-//  command.run();
-  }
-//void loop()
-//{
+    motorLeft.loopFOC();
+    motorRight.loopFOC(); //RIGHT MOTOR
+
+    motorLeft.move(targetLeftMotor);
+    motorRight.move(targetRightMotor);
 //  //   zAxisServoObject.write(zTopAt);
 //  //   delay(1000);
 //  //   gripperServoObject.write(gripCloseAt); // close
@@ -327,24 +385,24 @@ void loop()
 ////  move_parameter();
 //
 //  // ----- get the next instruction
-//    while (Serial.available()) {
-//      INPUT_CHAR = (char)Serial.read();         //read character
-//      Serial.write(INPUT_CHAR);                 //echo character to the screen
-//      BUFFER[INDEX++] = INPUT_CHAR;             //add char to buffer
-//      if (INPUT_CHAR == '\n') {                 //check for line feed
-//        Serial.flush();                         //clear TX buffer
-//        Serial.write(XOFF);                     //pause transmission
-//        INPUT_STRING = BUFFER;                  //convert to string
-//        process(INPUT_STRING);                  //interpret string and perform task
-//        memset(BUFFER, '\0', sizeof(BUFFER));   //fill buffer with string terminators
-//        INDEX = 0;                              //point to buffer start
-//        INPUT_STRING = "";                      //empty string
-//        Serial.flush();                         //clear TX buffer
-//        Serial.write(XON);                      //resume transmission
-//      }
-//    }
+    // while (Serial.available()) {
+    //   INPUT_CHAR = (char)Serial.read();         //read character
+    //   Serial.write(INPUT_CHAR);                 //echo character to the screen
+    //   BUFFER[INDEX++] = INPUT_CHAR;             //add char to buffer
+    //   if (INPUT_CHAR == '\n') {                 //check for line feed
+    //     Serial.flush();                         //clear TX buffer
+    //     Serial.write(XOFF);                     //pause transmission
+    //     INPUT_STRING = BUFFER;                  //convert to string
+    //     process(INPUT_STRING);                  //interpret string and perform task
+    //     memset(BUFFER, '\0', sizeof(BUFFER));   //fill buffer with string terminators
+    //     INDEX = 0;                              //point to buffer start
+    //     INPUT_STRING = "";                      //empty string
+    //     Serial.flush();                         //clear TX buffer
+    //     Serial.write(XON);                      //resume transmission
+    //   }
+    // }
 ////    Serial.println(BUFFER);
-//}
+}
 //
 //void move_parameter() {
 //  move_to(xMinWorkspace, yMinWorkspace);
@@ -357,289 +415,289 @@ void loop()
 //  delay(100);
 //}
 //
-////---------------------------------------------------------------------------
-//// MENU
-////---------------------------------------------------------------------------
-///*
-//   The Arduino F() flash macro is used to conserve RAM.
-//*/
-//void menu() {
-//  Serial.println(F(""));
-//  Serial.println(F("  ------------------------------------------------------"));
-//  Serial.println(F("                         MENU"));
-//  Serial.println(F("  ------------------------------------------------------"));
-//  Serial.println(F("    MENU ............... menu"));
-//  Serial.println(F("    G00 X## Y## ........ goto XY (pen-up)"));
-//  Serial.println(F("    G01 X## Y## ........ goto XY (pen-down)"));
-//  Serial.println(F("    T1 ................. manual control"));
-//  Serial.println(F("    T2 S##.## .......... set drawing Scale (1=100%)"));
-//  Serial.println(F("    T3 ................. pen up"));
-//  Serial.println(F("    T4 ................. pen down"));
-//  Serial.println(F("    E3 ................. gripper open"));
-//  Serial.println(F("    E4 ................. gripper close"));
-//  Serial.println(F("    T5 ................. test pattern: ABC"));
-//  Serial.println(F("    T6 ................. test pattern: target"));
-//  Serial.println(F("    T7 ................. test pattern: radials"));
-//  Serial.println(F("  ------------------------------------------------------"));
-//}
-//
-//// --------------------------------------------------------------------------------
-//// PREOCESS
-//// --------------------------------------------------------------------------------
-//void process(String string) {
-//  numberOfSegments = 100; // only so i can change it to 2 in manual mode
-//  // ----- convert string to upper case
-//  INPUT_STRING = string;
-//  INPUT_STRING.toUpperCase();
-//
-//  // ----------------------------------
-//  // T1   control the arm
-//  // ----------------------------------
-//  if(INPUT_STRING.startsWith("T1")) {
-//    // ----- instructions
-//    Serial.println(F(""));
-//    Serial.println(F("  ----------------------------------------------"));
-//    Serial.println(F("    Position the pen over the 0,0 co-ordinate:"));
-//    Serial.println(F("  ----------------------------------------------"));
-//    Serial.println(F("    X-axis:             Y-axis:"));
-//    Serial.println(F("   'A'  'D'            'W'  'S'"));
-//    Serial.println(F("   <-    ->            <-    ->"));
-//    Serial.println(F("    Exit = 'E'"));
-//
-//    numberOfSegments = 1; // only so i can change it to 2 in manual mode
-//    // ----- flush the buffer
-//    while (Serial.available() > 0) Serial.read();
-//
-//    // ----- control motors
-//    char keystroke = ' ';
-//    while (keystroke != 'E') // press 'E' to exit
-//    {
-//      // ----- check for keypress
-//      if (Serial.available() > 0) {
-//        keystroke = (char) Serial.read();
-//      }
-//
-//      // ----- select task
-//      switch (keystroke) {
-//        case 'a':
-//        case 'A': {
-//            // ----- move left
-//            move_to(LAST_X-5,LAST_Y);
-//            keystroke = ' ';    //otherwise motor will continue to rotate
-//            break;
-//          }
-//        case 'd':
-//        case 'D': {
-//            // ------ move right
-//            move_to(LAST_X+5,LAST_Y);
-//            keystroke = ' ';
-//            break;
-//          }
-//        case 'w':
-//        case 'W': {
-//            // ----- move up
-//            move_to(LAST_X,LAST_Y+5);
-//            keystroke = ' ';
-//            break;
-//          }
-//        case 's':
-//        case 'S': {
-//            // ----- move down
-//            move_to(LAST_X,LAST_Y-5);
-//            keystroke = ' ';
-//            break;
-//          }
-//        case 'e':
-//        case 'E': {
-//            // ----- exit
-//            Serial.println(F(" "));
-//            Serial.println(F("  Exit ..."));
-//            keystroke = 'E';
-//            break;
-//          }
-//        // ----- default for keystroke
-//        default: {
-//            break;
-//          }
-//      }
-//    }
-//    
-//  }
-//
-//  // ----------------------------------
-//  // G00   linear move with pen_up
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("G00")) {
-//
-//    // ----- extract X
-//    START = INPUT_STRING.indexOf('X');
-//    if (!(START < 0)) {
-//      FINISH = START + 8;
-//      //      FINISH = INPUT_STRING.indexOf('Y');
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
-//      //      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH - 1);
-//      X = SUB_STRING.toFloat();
-//      Serial.println(F("X ==== "));
-//      Serial.println(X);
-//    }
-//
-//    // ----- extract Y
-//    START = INPUT_STRING.indexOf('Y');
-//    if (!(START < 0)) {
-//      FINISH = START + 8;
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
-//      Y = SUB_STRING.toFloat();
-//      Serial.println(F("Y ==== "));
-//      Serial.println(Y);
-//    }
-//
+//---------------------------------------------------------------------------
+// MENU
+//---------------------------------------------------------------------------
+/*
+   The Arduino F() flash macro is used to conserve RAM.
+*/
+void menu() {
+  Serial.println(F(""));
+  Serial.println(F("  ------------------------------------------------------"));
+  Serial.println(F("                         MENU"));
+  Serial.println(F("  ------------------------------------------------------"));
+  Serial.println(F("    MENU ............... menu"));
+  Serial.println(F("    G00 X## Y## ........ goto XY (pen-up)"));
+  Serial.println(F("    G01 X## Y## ........ goto XY (pen-down)"));
+  Serial.println(F("    T1 ................. manual control"));
+  Serial.println(F("    T2 S##.## .......... set drawing Scale (1=100%)"));
+  Serial.println(F("    T3 ................. pen up"));
+  Serial.println(F("    T4 ................. pen down"));
+  Serial.println(F("    E3 ................. gripper open"));
+  Serial.println(F("    E4 ................. gripper close"));
+  Serial.println(F("    T5 ................. test pattern: ABC"));
+  Serial.println(F("    T6 ................. test pattern: target"));
+  Serial.println(F("    T7 ................. test pattern: radials"));
+  Serial.println(F("  ------------------------------------------------------"));
+}
+
+// --------------------------------------------------------------------------------
+// PREOCESS
+// --------------------------------------------------------------------------------
+void process(String string) {
+  numberOfSegments = 100; // only so i can change it to 2 in manual mode
+  // ----- convert string to upper case
+  INPUT_STRING = string;
+  INPUT_STRING.toUpperCase();
+
+  // ----------------------------------
+  // T1   control the arm
+  // ----------------------------------
+  if(INPUT_STRING.startsWith("T1")) {
+    // ----- instructions
+    Serial.println(F(""));
+    Serial.println(F("  ----------------------------------------------"));
+    Serial.println(F("    Position the pen over the 0,0 co-ordinate:"));
+    Serial.println(F("  ----------------------------------------------"));
+    Serial.println(F("    X-axis:             Y-axis:"));
+    Serial.println(F("   'A'  'D'            'W'  'S'"));
+    Serial.println(F("   <-    ->            <-    ->"));
+    Serial.println(F("    Exit = 'E'"));
+
+    numberOfSegments = 1; // only so i can change it to 2 in manual mode
+    // ----- flush the buffer
+    while (Serial.available() > 0) Serial.read();
+
+    // ----- control motors
+    char keystroke = ' ';
+    while (keystroke != 'E') // press 'E' to exit
+    {
+      // ----- check for keypress
+      if (Serial.available() > 0) {
+        keystroke = (char) Serial.read();
+      }
+
+      // ----- select task
+      switch (keystroke) {
+        case 'a':
+        case 'A': {
+            // ----- move left
+            move_to(LAST_X-5,LAST_Y);
+            keystroke = ' ';    //otherwise motor will continue to rotate
+            break;
+          }
+        case 'd':
+        case 'D': {
+            // ------ move right
+            move_to(LAST_X+5,LAST_Y);
+            keystroke = ' ';
+            break;
+          }
+        case 'w':
+        case 'W': {
+            // ----- move up
+            move_to(LAST_X,LAST_Y+5);
+            keystroke = ' ';
+            break;
+          }
+        case 's':
+        case 'S': {
+            // ----- move down
+            move_to(LAST_X,LAST_Y-5);
+            keystroke = ' ';
+            break;
+          }
+        case 'e':
+        case 'E': {
+            // ----- exit
+            Serial.println(F(" "));
+            Serial.println(F("  Exit ..."));
+            keystroke = 'E';
+            break;
+          }
+        // ----- default for keystroke
+        default: {
+            break;
+          }
+      }
+    }
+    
+  }
+
+  // ----------------------------------
+  // G00   linear move with pen_up
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("G00")) {
+
+    // ----- extract X
+    START = INPUT_STRING.indexOf('X');
+    if (!(START < 0)) {
+      FINISH = START + 8;
+      //      FINISH = INPUT_STRING.indexOf('Y');
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
+      //      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH - 1);
+      X = SUB_STRING.toFloat();
+      Serial.println(F("X ==== "));
+      Serial.println(X);
+    }
+
+    // ----- extract Y
+    START = INPUT_STRING.indexOf('Y');
+    if (!(START < 0)) {
+      FINISH = START + 8;
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
+      Y = SUB_STRING.toFloat();
+      Serial.println(F("Y ==== "));
+      Serial.println(Y);
+    }
+
 //    pen_up();
-//    move_to(X, Y);
-//  }
-//
-//  // ----------------------------------
-//  // G01   linear move with pen_down
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("G01")) {
-//
-//    // ----- extract X
-//    START = INPUT_STRING.indexOf('X');
-//    if (!(START < 0)) {
-//      FINISH = START + 8;
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
-//      X = SUB_STRING.toFloat();
-//    }
-//
-//    // ----- extract Y
-//    START = INPUT_STRING.indexOf('Y');
-//    if (!(START < 0)) {
-//      FINISH = START + 8;
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
-//      Y = SUB_STRING.toFloat();
-//    }
-//
+    move_to(X, Y);
+  }
+
+  // ----------------------------------
+  // G01   linear move with pen_down
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("G01")) {
+
+    // ----- extract X
+    START = INPUT_STRING.indexOf('X');
+    if (!(START < 0)) {
+      FINISH = START + 8;
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
+      X = SUB_STRING.toFloat();
+    }
+
+    // ----- extract Y
+    START = INPUT_STRING.indexOf('Y');
+    if (!(START < 0)) {
+      FINISH = START + 8;
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 1);
+      Y = SUB_STRING.toFloat();
+    }
+
 //    pen_down();
-//    move_to(X, Y);
-//  }
-//
-//  // ----------------------------------
-//  // T3   pen up
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("T3")) {
+    move_to(X, Y);
+  }
+
+  // ----------------------------------
+  // T3   pen up
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("T3")) {
 //    pen_up();
-//  }
-//
-//  // ----------------------------------
-//  // T4   pen down
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("T4")) {
+  }
+
+  // ----------------------------------
+  // T4   pen down
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("T4")) {
 //    pen_down();
-//  }
-//
-//  // ----------------------------------
-//  // E3   gripperOpen
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("E3")) {
+  }
+
+  // ----------------------------------
+  // E3   gripperOpen
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("E3")) {
 //    gripperOpen();
-//  }
-//
-//  // ----------------------------------
-//  // E4   gripperClose
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("E4")) {
+  }
+
+  // ----------------------------------
+  // E4   gripperClose
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("E4")) {
 //    gripperClose();
-//  }
-//
-//  // ----------------------------------
-//  // G02   clockwise arc with pen_down
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("G02")) {
-//
-//    // ----- extract X
-//    START = INPUT_STRING.indexOf('X');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('X'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      X = SUB_STRING.toFloat();
-//    }
-//
-//    // ----- extract Y
-//    START = INPUT_STRING.indexOf('Y');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('Y'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      Y = SUB_STRING.toFloat();
-//    }
-//
-//    // ----- extract I
-//    START = INPUT_STRING.indexOf('I');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('I'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      I = SUB_STRING.toFloat();
-//    }
-//
-//    // ----- extract J
-//    START = INPUT_STRING.indexOf('J');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('J'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      J = SUB_STRING.toFloat();
-//    }
-//
+  }
+
+  // ----------------------------------
+  // G02   clockwise arc with pen_down
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("G02")) {
+
+    // ----- extract X
+    START = INPUT_STRING.indexOf('X');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('X'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      X = SUB_STRING.toFloat();
+    }
+
+    // ----- extract Y
+    START = INPUT_STRING.indexOf('Y');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('Y'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      Y = SUB_STRING.toFloat();
+    }
+
+    // ----- extract I
+    START = INPUT_STRING.indexOf('I');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('I'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      I = SUB_STRING.toFloat();
+    }
+
+    // ----- extract J
+    START = INPUT_STRING.indexOf('J');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('J'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      J = SUB_STRING.toFloat();
+    }
+
 //    pen_down();
 //    draw_arc_cw(X, Y, I, J);
-//  }
-//
-//  // ------------------------------------------
-//  // G03   counter-clockwise arc with pen_down
-//  // ------------------------------------------
-//  if (INPUT_STRING.startsWith("G03")) {
-//
-//    // ----- extract X
-//    START = INPUT_STRING.indexOf('X');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('X'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      X = SUB_STRING.toFloat();
-//    }
-//
-//    // ----- extract Y
-//    START = INPUT_STRING.indexOf('Y');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('Y'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      Y = SUB_STRING.toFloat();
-//    }
-//
-//    // ----- extract I
-//    START = INPUT_STRING.indexOf('I');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('I'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      I = SUB_STRING.toFloat();
-//    }
-//
-//    // ----- extract J
-//    START = INPUT_STRING.indexOf('J');
-//    if (!(START < 0)) {
-//      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('J'));
-//      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
-//      J = SUB_STRING.toFloat();
-//    }
-//
+  }
+
+  // ------------------------------------------
+  // G03   counter-clockwise arc with pen_down
+  // ------------------------------------------
+  if (INPUT_STRING.startsWith("G03")) {
+
+    // ----- extract X
+    START = INPUT_STRING.indexOf('X');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('X'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      X = SUB_STRING.toFloat();
+    }
+
+    // ----- extract Y
+    START = INPUT_STRING.indexOf('Y');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('Y'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      Y = SUB_STRING.toFloat();
+    }
+
+    // ----- extract I
+    START = INPUT_STRING.indexOf('I');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('I'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      I = SUB_STRING.toFloat();
+    }
+
+    // ----- extract J
+    START = INPUT_STRING.indexOf('J');
+    if (!(START < 0)) {
+      FINISH = INPUT_STRING.indexOf('.', INPUT_STRING.indexOf('J'));
+      SUB_STRING = INPUT_STRING.substring(START + 1, FINISH + 7);
+      J = SUB_STRING.toFloat();
+    }
+
 //    pen_down();
 //    draw_arc_ccw(X, Y, I, J);
-//  }
-//
-//  // ----------------------------------
-//  // T5   ABC test pattern
-//  // ----------------------------------
-//  if (INPUT_STRING.startsWith("T5")) {
+  }
+
+  // ----------------------------------
+  // T5   ABC test pattern
+  // ----------------------------------
+  if (INPUT_STRING.startsWith("T5")) {
 //    abc();
-//  }
-//}
-//
+  }
+}
+
 ////---------------------------------------------------------------------------
 //// PEN_UP, PEN_DOWN
 ////---------------------------------------------------------------------------
@@ -678,23 +736,23 @@ void loop()
 //  currentGripper = gripCloseAt;
 //  delay(20);                 //give pen-lift time to respond
 //}
-//
-// // -------------------------------
-// // MOVE_TO
-// // -------------------------------
-// void move_to(float x, float y) {                        //x,y are absolute co-ordinates
-//   // ----- apply scale factor
-//   THIS_X = x;      //scale x and y
-//   THIS_Y = y;
 
-//   // ----- draw a line between these "scaled" co-ordinates
-//   // draw_line(LAST_X, LAST_Y, THIS_X, THIS_Y, );
-//   MovetoFrom( LAST_X, LAST_Y, THIS_X, THIS_Y, numberOfSegments);
+// -------------------------------
+// MOVE_TO
+// -------------------------------
+void move_to(float x, float y) {                        //x,y are absolute co-ordinates
+ // ----- apply scale factor
+ THIS_X = x;      //scale x and y
+ THIS_Y = y;
 
-//   // ----- remember last "scaled" co-ordinate
-//   LAST_X = THIS_X;
-//   LAST_Y = THIS_Y;
-// }
+ // ----- draw a line between these "scaled" co-ordinates
+ // draw_line(LAST_X, LAST_Y, THIS_X, THIS_Y, );
+ MovetoFrom( LAST_X, LAST_Y, THIS_X, THIS_Y, numberOfSegments);
+
+ // ----- remember last "scaled" co-ordinate
+ LAST_X = THIS_X;
+ LAST_Y = THIS_Y;
+}
 
 void MovetoFrom( double x_current, double y_current, double x_goal, double y_goal, int numberOfSegments) {
 
@@ -702,6 +760,7 @@ void MovetoFrom( double x_current, double y_current, double x_goal, double y_goa
   double y[numberOfSegments];
   long positions[2]; // Array of desired stepper positions
 
+  //find intermidiate positions between current postion and goal position
   draw_line(x_current, y_current, x_goal, y_goal, numberOfSegments, x, y);
 
   if(numberOfSegments == 1){
@@ -716,33 +775,23 @@ void MovetoFrom( double x_current, double y_current, double x_goal, double y_goa
 
   for (int i = 0; i < numberOfSegments; i += 1) {
     //Calculate q1 and q2 using the inverse kinematics functions
-    angleOfLeftMotorDeg = InverseKinematics_q1 (l2f, l1f, x[i], y[i]);
+    angleOfLeftMotorDeg = -1*InverseKinematics_q1 (l2f, l1f, x[i], y[i]);
     angleOfRightMotorDeg = InverseKinematics_q2 (l2r, l1r, x[i], y[i], distanceBetweenMotorShafts);
 
 //    angleOfLeftMotorSteps = degreesToSteps(angleOfLeftMotorDeg);
 //    angleOfRightMotorSteps = degreesToSteps(angleOfRightMotorDeg);
 
-    positions[0] = angleOfLeftMotorDeg; //chages from saving steps to saving angles
-    positions[1] = angleOfRightMotorDeg;
-//    controller.moveTo(positions);
-//    controller.runSpeedToPosition();
+    //Setting target to move the motor
+    Serial.println(angleOfLeftMotorDeg);
+    targetLeftMotor = angleOfLeftMotorDeg;
+    targetRightMotor = angleOfRightMotorDeg;
+    delay(1000);
 
     // Fix arm rotation
     BLA::Matrix<3, 3> gripperPose;
     ForwardKinematics(angleOfLeftMotorDeg, angleOfRightMotorDeg, &gripperPose);
     double angleOfGripper = atan2( gripperPose(1, 0), gripperPose(0, 0) ) * 180 / PI;
     // rotationServoObject.write(int(angleOfGripper) + 90);
-
-  //  Serial.print(" x = ");
-  //  Serial.println(x[i]);
-  //  Serial.print(" y = ");
-  //  Serial.println(y[i]);
-
-    // LeftStepperObject.moveTo(angleOfLeftMotorSteps);
-    // RightStepperObject.moveTo(angleOfRightMotorSteps);
-    // int delta_steps1 = abs(LeftStepperObject.currentPosition() - angleOfLeftMotorSteps);
-    // int delta_steps2 = abs(RightStepperObject.currentPosition() - angleOfRightMotorSteps);
-    // Controller_const_accel(delta_steps1, delta_steps2, 200, 50000);
  }
 }
 //
@@ -906,8 +955,8 @@ double ForwardKinematics_y (double l2f, double l1f, double l2r, double l1r, doub
 //////Function to rotate the left motor CW
 //void TurnClockwise_q1 (int delayBetweenSteps)
 //{
-//  motor.controller = MotionControlType::angle;
-//  motor2.controller = MotionControlType::angle;
+//  motorLeft.controller = MotionControlType::angle;
+//  motorRight.controller = MotionControlType::angle;
 //  
 //  digitalWrite(LEFT_STEPPER_DIR_PIN, 0);
 //  digitalWrite(LEFT_STEPPER_STEP_PIN, HIGH);
@@ -927,13 +976,21 @@ double ForwardKinematics_y (double l2f, double l1f, double l2r, double l1r, doub
 //}
 //
 //
+
+/**
+ *   Find intermidiate positions between current postion and goal position
+ *   
+ *   @param x1 - current x position
+ *   @param y1 - current y position
+ *   @param x2 - target x position
+ *   @param y2 - target y position
+ *   @param NumberOfSegments - the number of intermidiate points needed
+ *   @param x, y - pointer to the array, to store the results
+ */
 double draw_line(double x1, double y1, double x2, double y2, int NumberOfSegments, double *x, double *y) {
 
  double delx = (x2 - x1) / (double(NumberOfSegments) - 1);
  double gradient = (y2 - y1) / (x2 - x1);
-
- //  double x[NumberOfSegments];
- //  double y[NumberOfSegments];
  double y_change = (y2 - y1) / double(NumberOfSegments);
 
  if (x2 - x1 == 0) {
@@ -947,7 +1004,6 @@ double draw_line(double x1, double y1, double x2, double y2, int NumberOfSegment
      y[i] = (x[i] - x1) * gradient + y1;
    }
  }
-
 }
 //
 //void Controller_const_accel(int LeftMotorStepsToMove, int RightMotorStepsToMove, int MaxSpeed, int Acceleration) {
@@ -1001,6 +1057,10 @@ double draw_line(double x1, double y1, double x2, double y2, int NumberOfSegment
 //  Y0 = gripperPose(1, 2);
 //  rotationServoObject.write(int(angleOfGripper) + 90);
 //}
+
+/**
+ * Perform forward kinematics
+ */
 void ForwardKinematics(double q1_deg, double q2_deg, BLA::Matrix<3, 3> *arm) {
 
  double q1;
