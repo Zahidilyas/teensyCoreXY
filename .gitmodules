@@ -1,0 +1,3 @@
+[submodule "libraries/Arduino-FOC"]
+	path = libraries/Arduino-FOC
+	url = https://github.com/simplefoc/Arduino-FOC.git
