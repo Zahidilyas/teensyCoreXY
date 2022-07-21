@@ -1,4 +1,4 @@
-# Teensy CoreXY Repo
+# Teensy Parallel Scara Repo
 
 ## Scara commands list to control motor and controller parameters
 
