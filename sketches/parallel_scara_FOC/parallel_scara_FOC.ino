@@ -35,7 +35,7 @@ float targetRightMotor = 0;
 Commander command = Commander(Serial);
 void doTarget(char* cmd) { command.scalar(&targetLeftMotor, cmd); }
 void doTarget2(char* cmd2) { command.scalar(&targetRightMotor, cmd2); }
-void doMotor(char* cmd) { command.motor(&motorLeft, cmd); }
+void doMotorLeft(char* cmd) { command.motor(&motorLeft, cmd); }
 void domotorRight(char* cmd) { command.motor(&motorRight, cmd); }
 
 // System parameters
@@ -175,11 +175,11 @@ void setup()
   motorRight.PID_velocity.I = 20; //20
   motorRight.PID_velocity.D = 0.01;
 
-  motorLeft.P_angle.P = 10;
-  motorRight.P_angle.P = 10;
+  motorLeft.P_angle.P = 20;
+  motorRight.P_angle.P = 20;
   // default voltage_power_supply
-  motorLeft.voltage_limit = 12;
-  motorRight.voltage_limit = 12;
+  motorLeft.voltage_limit = 6;
+  motorRight.voltage_limit = 6;
 
   // jerk control using voltage voltage ramp
   // default value is 300 volts per sec  ~ 0.3V per millisecond
@@ -204,11 +204,13 @@ void setup()
   // add target command T
   command.add('T', doTarget, "target velocity");
   command.add('Y', doTarget2, "target velocity 2");
-  command.add('M',doMotor,"motor");
-  command.add('N',domotorRight,"motor");
+  command.add('M',doMotorLeft,"motor left");
+  command.add('N',domotorRight,"motor right");
   
   // ----- establish serial link
-  Serial.begin(BAUD);
+  Serial.begin(115200);
+
+  // motor.useMonitoring(Serial);
   
 //  Serial.println(F("Motor ready."));
 //  Serial.println(F("Set the target velocity using serial terminal:"));
@@ -257,6 +259,8 @@ void setup()
 //  Serial.flush();                           //clear TX buffer
 //  while (Serial.available()) Serial.read(); //clear RX buffer
   // ----- display commands
+  Serial.println(F("Motor ready."));
+  Serial.println(F("Set the targets position using serial terminal:"));
   menu();
 }
 
@@ -299,38 +303,61 @@ void calibrate_scara(){
 
   // Rotate till right switch triggered
   while (digitalRead(SW2) == LOW) {
-    Serial.println(targetLeftMotor);
-    targetLeftMotor = 2;
-    targetRightMotor = 2;
+    targetLeftMotor = 1;
+    targetRightMotor = 1;
     threads.delay(50);
   }
   targetLeftMotor = 0;
   targetRightMotor = 0;
+
+  // NOTE: Positive angles are in CW direction for both motors 
   // reset right motor encoder zero position
-  motorRight.sensor_offset = motorRight.sensor_offset + motorRight.shaft_angle + calibrationAngleRight;
+  threads.delay(1000); // delays are important to let "motorRight.shaft_angle" settle
+  motorRight.sensor_offset = motorRight.sensor_offset + motorRight.shaft_angle - calibrationAngleRight*PI/180;
+  threads.delay(1000);
 
   // Rotate till left switch triggered
   while (digitalRead(SW1) == LOW) {
-    targetLeftMotor = -2;
-    targetRightMotor = -2;
+    targetLeftMotor = -1;
+    targetRightMotor = -1;
     threads.delay(50);
   }
   targetLeftMotor = 0;
   targetRightMotor = 0;
+
   // reset left motor encoder zero position
-  motorLeft.sensor_offset = motorLeft.sensor_offset + motorLeft.shaft_angle - calibrationAngleLeft;
+  threads.delay(1000);
+  motorLeft.sensor_offset = motorLeft.sensor_offset + motorLeft.shaft_angle + calibrationAngleLeft*PI/180;
+  threads.delay(1000);
 
   motorLeft.controller = MotionControlType::angle;
   motorRight.controller = MotionControlType::angle;
 
-  motorRight.target = motorRight.shaft_angle;
   targetRightMotor = motorRight.shaft_angle;
-  motorLeft.target = motorLeft.shaft_angle;
+  targetLeftMotor = motorLeft.shaft_angle;
 
   // ----- remember last "scaled" co-ordinate
   LAST_X = xMinWorkspace - 20;
   LAST_Y = yMinWorkspace;
-  MovetoFrom(xMinWorkspace - 20, yMinWorkspace, 0, 0, numberOfSegments);
+
+  Serial.println(motorLeft.shaft_angle*180/PI);
+  Serial.println(motorRight.shaft_angle*180/PI);
+  // targetLeftMotor = 0;
+  // targetRightMotor = 0;
+  MovetoFrom(xMinWorkspace - 20, yMinWorkspace, 0, yMinWorkspace, numberOfSegments);
+  // ----- remember last "scaled" co-ordinate
+ LAST_X = 0;
+ LAST_Y = yMinWorkspace;
+
+  for(int z = 0; z<2; z++){
+    // move_to(-100,150);
+    move_to(100,150);
+    move_to(100,60);
+    move_to(-100,60);
+    move_to(-100,60);
+    move_to(-100,150);
+  }
+
   threads.kill(threads.id());
 }
 
@@ -346,6 +373,9 @@ void loop()
 
     motorLeft.move(targetLeftMotor);
     motorRight.move(targetRightMotor);
+
+    // user communication
+    command.run();
 }
 
 //
@@ -682,7 +712,7 @@ void move_to(float x, float y) {                        //x,y are absolute co-or
 
  // ----- draw a line between these "scaled" co-ordinates
  // draw_line(LAST_X, LAST_Y, THIS_X, THIS_Y, );
- Serial.println(threads.id());
+//  Serial.println(threads.id());
  MovetoFrom( LAST_X, LAST_Y, THIS_X, THIS_Y, numberOfSegments);
 
  Serial.println(F("LAST_X ==== "));
@@ -701,7 +731,7 @@ void move_to(float x, float y) {                        //x,y are absolute co-or
 
 void MovetoFrom( double x_current, double y_current, double x_goal, double y_goal, const int numberOfSegments) {
 
-  Serial.println(threads.id());
+  // Serial.println(threads.id());
   double x[numberOfSegments];
   double y[numberOfSegments];
   long positions[2]; // Array of desired stepper positions
@@ -714,14 +744,14 @@ void MovetoFrom( double x_current, double y_current, double x_goal, double y_goa
     y[0] = y_goal;
   }
 
-  Serial.print(" x_current = ");
-  Serial.println(x_current);
-  Serial.print(" y_current = ");
-  Serial.println(y_current);
-  Serial.print(" x_goal = ");
-  Serial.println(x_goal);
-  Serial.print(" y_goal = ");
-  Serial.println(y_goal);
+  // Serial.print(" x_current = ");
+  // Serial.println(x_current);
+  // Serial.print(" y_current = ");
+  // Serial.println(y_current);
+  // Serial.print(" x_goal = ");
+  // Serial.println(x_goal);
+  // Serial.print(" y_goal = ");
+  // Serial.println(y_goal);
 
   for (int i = 0; i < numberOfSegments; i += 1) {
 
@@ -729,16 +759,16 @@ void MovetoFrom( double x_current, double y_current, double x_goal, double y_goa
     // Serial.print(x[i]);
     // Serial.print(",  y_current = ");
     // Serial.println(y[i]);
-    //Calculate q1 and q2 using the inverse kinematics functions
-    // angleOfLeftMotorDeg =  InverseKinematics_q1 (l2f, l1f, x[i], y[i]);
-    // angleOfRightMotorDeg = InverseKinematics_q2 (l2r, l1r, x[i], y[i], distanceBetweenMotorShafts);
+    //Calculate q1 and q2 using the inverse kinematics functions (in degree)
+    angleOfLeftMotorDeg =  InverseKinematics_q1 (l2f, l1f, x[i], y[i]);
+    angleOfRightMotorDeg = InverseKinematics_q2 (l2r, l1r, x[i], y[i], distanceBetweenMotorShafts);
 
-    Serial.print(" x_current = ");
-    Serial.print(0);
-    Serial.print(",  y_current = ");
-    Serial.println(60);
-    angleOfLeftMotorDeg =  InverseKinematics_q1 (l2f, l1f,0,60);
-    angleOfRightMotorDeg = InverseKinematics_q2 (l2r, l1r,0,60, distanceBetweenMotorShafts);
+    // Serial.print(" x_current = ");
+    // Serial.print(0);
+    // Serial.print(",  y_current = ");
+    // Serial.println(60);
+    // angleOfLeftMotorDeg =  InverseKinematics_q1 (l2f, l1f,0,60);
+    // angleOfRightMotorDeg = InverseKinematics_q2 (l2r, l1r,0,60, distanceBetweenMotorShafts);
 
   //  angleOfLeftMotorSteps = degreesToSteps(angleOfLeftMotorDeg);
   //  angleOfRightMotorSteps = degreesToSteps(angleOfRightMotorDeg);
@@ -748,17 +778,18 @@ void MovetoFrom( double x_current, double y_current, double x_goal, double y_goa
     Serial.println(angleOfLeftMotorDeg);
     Serial.print("right motor angle go to = ");
     Serial.println(angleOfRightMotorDeg);
-    // targetLeftMotor = angleOfLeftMotorDeg;
-    // targetRightMotor = angleOfRightMotorDeg;
+    targetLeftMotor = -1*angleOfLeftMotorDeg*PI/180;
+    targetRightMotor = -1*angleOfRightMotorDeg*PI/180;
+    threads.delay(50);
     // delay(1000);
 
     // Fix arm rotation
     BLA::Matrix<3, 3> gripperPose;
     ForwardKinematics(angleOfLeftMotorDeg, angleOfRightMotorDeg, &gripperPose);
     double angleOfGripper = atan2( gripperPose(1, 0), gripperPose(0, 0) ) * 180 / PI;
-    Serial.println("endpose = ");
-    Serial.println(gripperPose(0,2));
-    Serial.println(gripperPose(1,2));
+    // Serial.println("endpose = ");
+    // Serial.println(gripperPose(0,2));
+    // Serial.println(gripperPose(1,2));
     // rotationServoObject.write(int(angleOfGripper) + 90);
  }
 }
